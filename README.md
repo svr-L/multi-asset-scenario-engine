@@ -22,6 +22,20 @@ The broader objective is to treat scenario generation and repricing as reusable 
 - cross-asset stress testing
 - future extensions toward richer equity-premium and risk-free generators
 
+## Positioning
+
+This project is best understood as a prototype for:
+
+- joint scenario generation under the physical measure
+- horizon repricing of equity and rates instruments
+- portfolio tail-risk analysis
+
+It is not intended as:
+
+- a pure risk-neutral pricing library
+- a production-grade market risk system
+- a pure alpha-signal forecasting project
+
 ## Current implementation
 
 The current version includes the following components.
@@ -189,20 +203,6 @@ Typical Python packages used in the notebook:
 - Run all cells in order
 
 The notebook downloads market data live, so internet access is required at execution time.
-
-## Positioning
-
-This project is best understood as a prototype for:
-
-- joint scenario generation under the physical measure
-- horizon repricing of equity and rates instruments
-- portfolio tail-risk analysis
-
-It is not intended as:
-
-- a pure risk-neutral pricing library
-- a production-grade market risk system
-- a pure alpha-signal forecasting project
 
 ## Repository structure
 
