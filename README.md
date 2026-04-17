@@ -167,6 +167,45 @@ This framework can naturally evolve into:
 - robust portfolio construction under simulated market states
 - comparison of scenario engines for ex-ante risk and robustness analysis
 
+The current implementation is notebook-first, but the architecture is explicitly designed to support a cleaner package-style refactor.
+
+Requirements
+
+Typical Python packages used in the notebook:
+
+numpy
+pandas
+matplotlib
+scikit-learn
+statsmodels
+yfinance
+pandas_datareader
+scipy
+How to run
+Clone the repository
+Install the required packages
+Open the notebook
+Run all cells in order
+
+The notebook downloads market data live, so internet access is required at execution time.
+
+Positioning
+
+This project is best understood as a prototype for:
+
+joint scenario generation under the physical measure
+horizon repricing of equity and rates instruments
+portfolio tail-risk analysis
+
+It is not intended as:
+
+a pure risk-neutral pricing library
+a production-grade market risk system
+a pure alpha-signal forecasting project
+Author
+
+Saverio Lauriola
+
 ## Repository structure
 
 A possible modular structure is:
