@@ -1,10 +1,24 @@
-# Multi-Asset Scenario Engine
+## Multi-Asset Scenario Engine
 
 A modular Python framework for joint equity-rates scenario generation under the physical measure, horizon repricing, and portfolio tail-risk analysis.
 
 The current implementation is a research prototype designed to connect market risk modelling, cross-asset scenario generation, instrument repricing, and portfolio-level tail-risk diagnostics in a single workflow.
 
-c Motivation
+## Positioning
+
+This project is best understood as a prototype for:
+
+- joint scenario generation under the physical measure
+- horizon repricing of equity and rates instruments
+- portfolio tail-risk analysis
+
+It is not intended as:
+
+- a pure risk-neutral pricing library
+- a production-grade market risk system
+- a pure alpha-signal forecasting project
+
+## Motivation
 
 This project was built to bridge:
 
@@ -21,20 +35,6 @@ The broader objective is to treat scenario generation and repricing as reusable 
 - portfolio robustness checks
 - cross-asset stress testing
 - future extensions toward richer equity-premium and risk-free generators
-
-## Positioning
-
-This project is best understood as a prototype for:
-
-- joint scenario generation under the physical measure
-- horizon repricing of equity and rates instruments
-- portfolio tail-risk analysis
-
-It is not intended as:
-
-- a pure risk-neutral pricing library
-- a production-grade market risk system
-- a pure alpha-signal forecasting project
 
 ## Current implementation
 
