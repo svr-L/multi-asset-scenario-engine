@@ -173,15 +173,16 @@ The current implementation is notebook-first, but the architecture is explicitly
 
 Typical Python packages used in the notebook:
 
-numpy
-pandas
-matplotlib
-scikit-learn
-statsmodels
-yfinance
-pandas_datareader
-scipy
-How to run
+- numpy
+- pandas
+- matplotlib
+- scikit-learn
+- statsmodels
+- yfinance
+- pandas_datareader
+- scipy
+
+## How to run
 Clone the repository
 Install the required packages
 Open the notebook
