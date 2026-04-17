@@ -183,10 +183,10 @@ Typical Python packages used in the notebook:
 - scipy
 
 ## How to run
-Clone the repository
-Install the required packages
-Open the notebook
-Run all cells in order
+- Clone the repository
+- Install the required packages
+- Open the notebook
+- Run all cells in order
 
 The notebook downloads market data live, so internet access is required at execution time.
 
