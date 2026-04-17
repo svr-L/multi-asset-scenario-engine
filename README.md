@@ -4,7 +4,7 @@ A modular Python framework for joint equity-rates scenario generation under the 
 
 The current implementation is a research prototype designed to connect market risk modelling, cross-asset scenario generation, instrument repricing, and portfolio-level tail-risk diagnostics in a single workflow.
 
-## Motivation
+c Motivation
 
 This project was built to bridge:
 
@@ -169,7 +169,7 @@ This framework can naturally evolve into:
 
 The current implementation is notebook-first, but the architecture is explicitly designed to support a cleaner package-style refactor.
 
-Requirements
+## Requirements
 
 Typical Python packages used in the notebook:
 
@@ -189,20 +189,21 @@ Run all cells in order
 
 The notebook downloads market data live, so internet access is required at execution time.
 
-Positioning
+## Positioning
 
 This project is best understood as a prototype for:
 
-joint scenario generation under the physical measure
-horizon repricing of equity and rates instruments
-portfolio tail-risk analysis
+- joint scenario generation under the physical measure
+- horizon repricing of equity and rates instruments
+- portfolio tail-risk analysis
 
 It is not intended as:
 
-a pure risk-neutral pricing library
-a production-grade market risk system
-a pure alpha-signal forecasting project
-Author
+- a pure risk-neutral pricing library
+- a production-grade market risk system
+- a pure alpha-signal forecasting project
+
+## Author
 
 Saverio Lauriola
 
