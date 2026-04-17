@@ -204,10 +204,6 @@ It is not intended as:
 - a production-grade market risk system
 - a pure alpha-signal forecasting project
 
-## Author
-
-Saverio Lauriola
-
 ## Repository structure
 
 A possible modular structure is:
@@ -223,3 +219,11 @@ A possible modular structure is:
 │   ├── repricing/
 │   └── analytics/
 └── README.md
+
+```
+
+---
+
+## Author
+
+Saverio Lauriola
