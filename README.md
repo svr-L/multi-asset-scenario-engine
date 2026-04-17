@@ -206,18 +206,10 @@ The notebook downloads market data live, so internet access is required at execu
 
 ## Repository structure
 
-A possible modular structure is:
-
 ```text
 .
 ├── notebooks/
 │   └── multi_asset_scenario_engine.ipynb
-├── src/
-│   ├── data/
-│   ├── drivers/
-│   ├── models/
-│   ├── repricing/
-│   └── analytics/
 └── README.md
 
 ```
