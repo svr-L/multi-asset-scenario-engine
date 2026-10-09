@@ -1,145 +1,204 @@
 # Multi-Asset Scenario Engine
 
-A modular Python research prototype for joint US equity-rates-credit-FX scenario generation under the physical measure, horizon repricing, and portfolio tail-risk analysis.
+A modular Python research engine for **joint cross-asset scenario generation under the physical measure**, **instrument-level horizon repricing**, and **portfolio tail-risk validation** across US equities, Treasury rates, credit spreads and FX.
 
-The project is designed as a lightweight market-risk / risk-strat engine rather than a point-forecasting notebook. It follows the pipeline:
+The repository is the cleaned standalone **v20 scenario-engine release**. The later Flexible Probabilities / Entropy Pooling work is deliberately kept separate: this project owns the physical scenario distribution, repricing stack and risk validation layer.
 
-```text
-market data -> risk drivers -> joint scenarios -> horizon repricing -> portfolio tail risk
-```
+## What the engine does
 
-## Current stable release
+The workflow is deliberately closer to a market-risk / risk-strat stack than to a return-forecasting notebook:
 
-The current public release focuses on a **one-week cross-asset horizon**. The engine models a broad US equity universe, the US Treasury curve, credit rating-bucket OAS spreads, and EUR/USD FX spot in a single joint state. Simulated states are mapped back into instrument values and portfolio losses.
+1. build transformed equity, Treasury, credit and FX risk drivers;
+2. compress each block into parsimonious factors while retaining residual risk;
+3. generate joint physical-measure scenarios with block resampling and optional conditional volatility / level mean reversion;
+4. reconstruct horizon market states;
+5. reprice equities, a Treasury note, corporate bonds and an FX forward;
+6. produce portfolio VaR, Expected Shortfall, tail contributions and minimum-CVaR allocations;
+7. validate VaR and ES in a point-in-time walk-forward design.
 
-The stable default is a **joint stationary block bootstrap** of the cross-asset state. A VAR(1) model is also fitted and reported as a diagnostic / challenger, but the block-bootstrap engine is the default because it is more parsimonious for the short horizon and preserves empirical cross-asset dependence.
+## Research architecture
 
-## What the notebook does
+### Equity-premium block
 
-### 1. Data layer
+The equity block is plug-and-play. The release supports:
 
-The notebook downloads and aligns:
+- latent statistical factor;
+- observed market-proxy factor;
+- Fama-French 3-factor APT;
+- Carhart-style APT with momentum.
 
-- adjusted-close prices for a multi-sector US equity universe;
-- a broad US equity market proxy;
-- a 10-tenor US Treasury key-rate curve from FRED;
-- daily Fama-French / Carhart factors;
-- ICE BofA option-adjusted spreads across rating buckets from AAA to CCC;
-- EUR/USD spot from FRED;
-- Moody's Aaa/Baa yields for optional crisis-tail calibration.
+Common equity structure is combined with a PCA-compressed residual block so idiosyncratic risk is not lost when the systematic component is simulated.
 
-### 2. Risk-driver blocks
+### Treasury-rate block
 
-The engine builds modular risk-driver blocks:
+A 10-tenor US Treasury grid is transformed into daily yield changes and compressed through PCA. Level/slope/curvature diagnostics are reported. For longer horizons, an optional OU/Vasicek pull is applied **only** to level series that pass a Dickey-Fuller-style gate; non-gated series retain random-walk dynamics.
 
-- **Equity:** selectable equity-premium engines (`latent_statistical`, `proxy_market`, `apt_ff3`, `apt_carhart`) plus compressed idiosyncratic residual factors;
-- **Rates:** PCA factors from daily Treasury key-rate changes;
-- **Credit:** PCA factors from rating-bucket OAS changes, with a parsimony cap to avoid near-degenerate credit dimensions;
-- **FX:** currency-pair log-return factors.
+### Credit block
 
-All blocks are stacked into a single joint state so that equity/rates/credit/FX co-movements are simulated jointly rather than imposed after the fact.
+Two credit representations are available:
 
-### 3. Joint scenario generation
+- current ICE BofA rating-bucket OAS data (AAA to CCC);
+- a long-history Moody's Aaa/Baa two-point driver used to recover multi-cycle credit dynamics when the public OAS history is truncated.
 
-The stable one-week engine uses a stationary block bootstrap of the joint state. This keeps the model parsimonious and preserves empirical cross-asset dependence. The notebook also fits a VAR(1), reports stability diagnostics, and measures one-step explanatory power to assess whether parametric mean dynamics add value.
+In long-history mode, simulated Moody's-factor moves are mapped to today's rating-bucket OAS anchors through overlap-estimated sensitivities **for repricing only**. No pre-history of the unavailable OAS buckets is fabricated.
 
-### 4. Horizon repricing
+### FX block
 
-The simulated risk-driver states are translated into one-week horizon values for:
+EUR/USD is the default FX factor. The design accepts multiple pairs and reprices a long-EUR forward under a simplified covered-interest-parity carry convention.
 
-- equities;
-- a synthetic semi-annual coupon Treasury note;
-- corporate bonds priced from Treasury zero rates plus simulated rating-bucket OAS;
-- a fully-funded EUR/USD forward.
+## Scenario generation
 
-This makes the notebook closer to a small cross-asset horizon-repricing engine than to a pure return-simulation exercise.
+The mainline generator uses a **joint stationary block bootstrap**. The notebook also retains VAR(1) and Student-t copula implementations as research challengers, but they are not the preferred v20 mainline.
 
-### 5. Portfolio tail-risk analytics
+For state-dependent risk, Filtered Historical Simulation can standardize each factor by its own conditional volatility. `VOL_PARAMS_MODE="estimated_gjr"` estimates factor-level GJR-GARCH dynamics and keeps leverage only where a nested likelihood-ratio gate supports it; factors without convincing volatility clustering fall back toward the simpler specification.
 
-The portfolio layer uses capital-normalized instrument returns and computes:
-
-- portfolio VaR and Expected Shortfall;
-- weighted tail contributions;
-- illustrative benchmark portfolios;
-- long-only minimum-CVaR weights via the Rockafellar-Uryasev linear-programming formulation;
-- a fresh-draw out-of-sample scenario check for tail-risk optimism.
-
-### 6. Validation
-
-The notebook includes distributional and dependence diagnostics:
-
-- simulated vs historical one-week risk scaling;
-- equity tail behaviour;
-- cross-equity correlation preservation;
-- equity-rates, equity-credit, and equity-FX dependence checks;
-- credit-spread scaling by rating bucket;
-- walk-forward VaR coverage using Kupiec and Christoffersen tests;
-- PIT / rank diagnostics.
+A fixed expected block length of 10 remains the practical default. A Politis-White selector is retained as a diagnostic because the very short blocks it can select after filtering were found to weaken cross-asset co-tail preservation.
 
 ## Crisis-tail overlay
 
-The common equity/rates/credit/FX sample is constrained by recent ICE BofA OAS availability and is relatively calm. To avoid pretending that a calm sample contains crisis tails, the notebook includes an **optional** crisis-tail overlay calibrated from long-history Moody's Baa/Aaa spread behaviour.
+An optional stress layer uses long-history Moody's credit information to calibrate the incidence and scale of crisis-like moves. It is **off by default** so the baseline physical generator remains separately identifiable from explicit stress overlays.
 
-The default configuration leaves the calm-sample engine unchanged. Turning the crisis overlay on deliberately fattens the simulated tail and should be interpreted as a stress mode, not as the baseline calibration.
+## 1W and 1Y horizons
 
-## Current scope and limitations
+The same framework supports:
 
-This is a research prototype, not a production risk system. Important limitations:
+- **1W:** short-horizon market-risk repricing;
+- **1Y:** annual carry plus CreditMetrics-style rating migration/default, recovery and migrated-spread repricing.
 
-- the credit block is a rating-bucket OAS curve, not a full maturity-by-rating credit surface;
-- corporate bonds are repriced using a flat rating OAS added to the Treasury curve;
-- the public FRED ICE BofA OAS sample may be limited to a recent rolling window;
-- the FX block is intentionally light, currently configured with EUR/USD;
-- the default public release focuses on a one-week market-risk horizon;
-- longer-horizon credit migration/default modelling is treated as a separate research extension.
+The annual branch is intentionally treated as more model-dependent: long-horizon rates, spreads, expected returns, migration and FX carry require assumptions that are negligible at one week.
 
-## Roadmap
+## Instrument repricing
 
-Planned extensions include:
+Scenario states feed instrument-level horizon values for:
 
-1. refactoring the notebook into reusable modules under `src/`;
-2. adding a separate one-year credit migration/default extension with block-specific long-horizon dynamics;
-3. introducing mean-reverting dynamics for rates and credit spreads at longer horizons;
-4. expanding FX and credit instrument coverage;
-5. adding stronger rolling validation and ablation tables across alternative dynamics;
-6. separating stable mainline notebooks from experimental research branches.
+- equities through cumulative simulated log returns;
+- a semi-annual coupon Treasury note through the simulated key-rate curve;
+- BBB and BB corporate bonds through Treasury + rating OAS, with migration/default in 1Y mode;
+- an EUR/USD FX forward through simulated spot, USD discounting and a declared simplified foreign-funding assumption.
 
-## Requirements
+The pricing layer is designed for **horizon P&L / market-risk analysis**, not as a substitute for a production risk-neutral pricing library.
 
-Typical packages used by the notebook:
+## Portfolio risk
 
-- numpy
-- pandas
-- matplotlib
-- scikit-learn
-- statsmodels
-- scipy
-- yfinance
-- pandas-datareader
+Instrument P&Ls are converted to capital-normalized returns. The portfolio layer includes:
 
-Install with:
+- equal-weight and sleeve benchmarks;
+- inverse-volatility allocation;
+- VaR and Expected Shortfall;
+- tail-contribution attribution;
+- exact long-only minimum-CVaR optimization via linear programming;
+- fresh-draw checks to distinguish scenario-set overfitting from stable tail-risk improvement.
+
+## Validation
+
+Validation is a first-class part of v20 rather than an afterthought.
+
+### Distribution and dependence diagnostics
+
+The notebook compares simulated and historical:
+
+- marginal horizon risk scaling;
+- excess kurtosis;
+- cross-equity correlation;
+- equity/rates, equity/credit and equity/FX dependence;
+- lower-tail equity co-exceedance.
+
+### Walk-forward VaR
+
+The point-in-time backtest refits the model at each as-of date and reports:
+
+- Kupiec unconditional coverage;
+- Christoffersen independence;
+- Christoffersen joint conditional coverage;
+- coverage by volatility regime and calendar year.
+
+`BACKTEST_MODE="full"` uses the full eligible historical window rather than only the latest dates. It is computationally expensive but is the preferred research validation setting.
+
+### Expected-Shortfall backtest
+
+v20 additionally tests the risk quantity optimized by the min-CVaR layer. The implementation follows the Acerbi-Szekely direct-backtest logic, using the model's full predictive distribution at each date and simulation-based null distributions for the test statistics rather than imposing a parametric loss law.
+
+## Repository layout
+
+```text
+.
+├── README.md
+├── pyproject.toml
+├── requirements.txt
+├── notebooks/
+│   └── multi_asset_scenario_engine.ipynb
+├── src/
+│   └── multi_asset_scenario_engine/
+│       ├── config.py
+│       ├── data.py
+│       ├── equity.py
+│       ├── factors.py
+│       ├── dynamics.py
+│       ├── simulation.py
+│       ├── repricing.py
+│       ├── portfolio.py
+│       ├── backtesting.py
+│       └── diagnostics.py
+└── tests/
+    ├── test_repricing.py
+    └── test_risk.py
+```
+
+The notebook imports the package. The implementation is therefore maintained in one place rather than duplicated between `.ipynb` and `.py` files.
+
+## Installation
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e .
+```
+
+Or install the pinned research dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## How to run
+## Running the notebook
 
-1. Clone the repository.
-2. Install the required packages.
-3. Open `multi_asset_scenario_engine.ipynb`.
-4. Run all cells in order.
-
-The notebook downloads market data live, so internet access is required.
-
-## Repository structure
-
-```text
-.
-├── multi_asset_scenario_engine.ipynb
-├── README.md
-└── requirements.txt
+```bash
+jupyter lab notebooks/multi_asset_scenario_engine.ipynb
 ```
+
+The notebook downloads data from Yahoo Finance, FRED and Kenneth French sources, so internet access is required. The default cleaned notebook uses the mature long-history/GJR/OU scenario configuration but keeps the shorter recent backtest for practical runtime. Set:
+
+```python
+RUN_FULL_VALIDATION = True
+```
+
+to activate the full v20 walk-forward VaR/ES validation.
+
+## Tests
+
+The unit tests are deliberately offline and focus on deterministic numerical building blocks:
+
+```bash
+pytest -q
+```
+
+They cover bootstrap indexing, bond/FX-forward repricing invariants, coverage-test outputs and minimum-CVaR constraints. The live-data research workflow is validated in the notebook rather than mocked as a unit test.
+
+## Important limitations
+
+- This is a research prototype, not a production market-risk platform.
+- Treasury CMT inputs are used as a simplified zero-curve representation for the horizon-pricing demo.
+- The long-history Moody's credit driver is only two-dimensional; the mapping into rating-bucket OAS is a sensitivity bridge, not a reconstructed historical spread surface.
+- The FX foreign funding curve is simplified.
+- 1Y migration/default and level dynamics are materially more assumption-sensitive than the 1W mainline.
+- Copula and crisis-overlay modules are challenger/stress tools, not automatically superior to the block-bootstrap baseline.
+
+## Relationship to the Entropy Pooling project
+
+The separate Entropy Pooling / Flexible Probabilities project treats this engine's physical scenarios as a **prior support** and reweights scenario probabilities under state information and views. Keeping the repositories separate makes the research question explicit:
+
+- **Scenario Engine:** how should the physical cross-asset distribution be generated, repriced and validated?
+- **Entropy Pooling:** how should that distribution be conditioned on state information, and does the conditioning add predictive value?
 
 ## Author
 
