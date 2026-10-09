@@ -1,0 +1,13 @@
+"""Cross-asset physical-measure scenario generation, horizon repricing and tail-risk analytics."""
+from .data import download_market_data, download_credit_oas, download_fx_rates, compute_fx_log_returns, download_moodys_credit, compute_credit_crisis_calibration, download_fama_french_daily_factors, choose_effective_asof, align_market_data, compute_equity_log_returns, compute_yield_changes, compute_spread_changes, compute_excess_log_returns_daily, compute_market_excess_log_returns_daily
+from .equity import build_factor_driven_equity_block, build_latent_statistical_equity_block, build_proxy_market_equity_block, build_apt_equity_block, summarize_equity_engine
+from .factors import build_rates_factor_model, build_credit_factor_model, build_curve_lsc_factors, estimate_credit_bucket_bridge, build_credit_lsc_factors, build_fx_factor_block, build_joint_driver_matrix
+from .dynamics import build_var1_model, var_one_step_r2, stationary_bootstrap_index_matrix, politis_white_block_length, t_copula_tail_dependence, fit_t_copula, sample_t_copula_innovations, fit_asset_copula, estimate_garch11_params, estimate_gjr_garch11_params, estimate_ou_level_params, compute_ewma_fhs_filter
+from .simulation import simulate_joint_horizon
+from .repricing import make_zero_curve_from_key_rates, generate_coupon_schedule, price_coupon_bond_from_curve, reprice_corporate_bond_scenarios, standard_1y_transition_matrix, build_migration_thresholds, simulate_horizon_ratings, reprice_corporate_bond_with_migration, coupons_paid_between, accrued_interest, price_fx_forward_mtm, atm_forward_fx_strike, reprice_fx_forward_scenarios
+from .portfolio import rolling_horizon_log_returns, rolling_horizon_yield_changes, portfolio_metrics_from_instrument_returns, inverse_vol_weights_from_scenarios, tail_contribution_table, search_long_only_min_cvar_portfolio
+from .backtesting import kupiec_pof_test, christoffersen_independence_test, contiguous_window_start, christoffersen_conditional_coverage_test, coverage_summary, sample_expected_shortfall, acerbi_szekely_es_test
+from .diagnostics import plot_time_series, plot_histogram, distribution_summary, loss_summary_from_pnl
+from .config import profile, horizon_fields
+
+__version__ = '0.20.0'
