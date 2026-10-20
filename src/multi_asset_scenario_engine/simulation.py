@@ -36,6 +36,41 @@ def _apply_credit_bridge(result, credit_bridge, current_spreads, credit_floor):
     return result
 
 
+def _restore_credit_residual(result, credit_block, credit_bridge, horizon_bdays, rng_seed, credit_floor):
+    """CREDIT_RESIDUAL_MODE="restore" (v22): add back, at the horizon, the bucket-specific credit
+    variance the compression step drops -- the PCA truncation (oas_buckets) or the residual of the
+    2-point -> bucket bridge (moody_2pt). Each scenario receives the h-day SUM of the daily compression
+    residuals over a random window of the estimation sample, so the restored variance is the empirical
+    horizon variance (day-to-day noise that mean-reverts is not over-counted) and the cross-bucket
+    dependence of the residuals is kept. Residuals are uncorrelated with the retained drivers by
+    construction (PCA orthogonality / OLS), so variances add. Own RNG stream: equity, rates, FX and the
+    systematic credit path are untouched. No-op unless the block (or the bridge) carries a
+    `residual_pool`, which only CREDIT_RESIDUAL_MODE="restore" attaches."""
+    pool = None
+    if credit_bridge is not None:
+        pool = credit_bridge.get("residual_pool")
+    elif credit_block is not None:
+        pool = credit_block.get("residual_pool")
+    if pool is None or "credit_spread_scenarios" not in result:
+        return result
+    scen = result["credit_spread_scenarios"]
+    R = pool.reindex(columns=list(scen.columns)).fillna(0.0).to_numpy(dtype=float)   # (T, n_buckets)
+    T, h, S = R.shape[0], int(horizon_bdays), scen.shape[0]
+    if T < 2 or h < 1:
+        return result
+    rng = np.random.default_rng([int(rng_seed), 7211])
+    if h < T:
+        cs = np.vstack([np.zeros((1, R.shape[1])), np.cumsum(R, axis=0)])
+        starts = rng.integers(0, T - h + 1, size=S)                  # windows inside the sample
+    else:                                                            # horizon longer than the sample:
+        reps = int(np.ceil(h / T)) + 2                               # circular windows (declared)
+        cs = np.vstack([np.zeros((1, R.shape[1])), np.cumsum(np.vstack([R] * reps), axis=0)])
+        starts = rng.integers(0, T, size=S)
+    e = cs[starts + h] - cs[starts]
+    out = np.clip(scen.to_numpy(dtype=float) + e, credit_floor, None)
+    result["credit_spread_scenarios"] = pd.DataFrame(out, columns=list(scen.columns), index=scen.index)
+    return result
+
 def simulate_joint_horizon(var_res, resid_hist, last_state, equity_block, rates_block,
                            current_prices, current_key_rates, horizon_bdays, n_scenarios,
                            avg_block_length, rng_seed, daily_rf, resid_idio_std=None,
@@ -163,7 +198,8 @@ def simulate_joint_horizon(var_res, resid_hist, last_state, equity_block, rates_
             cur_fx_v = current_fx.reindex(fx_cols).to_numpy()
             result["fx_log_return_scenarios"] = pd.DataFrame(cum_fx, columns=fx_cols)
             result["fx_spot_scenarios"] = pd.DataFrame(cur_fx_v[None, :] * np.exp(cum_fx), columns=fx_cols)
-        return _apply_credit_bridge(result, credit_bridge, current_spreads, credit_floor)
+        return _restore_credit_residual(_apply_credit_bridge(result, credit_bridge, current_spreads, credit_floor),
+                                        credit_block, credit_bridge, horizon_bdays, rng_seed, credit_floor)
 
     asset_names = current_prices.index
     rate_names = current_key_rates.index
@@ -328,6 +364,8 @@ def simulate_joint_horizon(var_res, resid_hist, last_state, equity_block, rates_
         fx_spot_scenarios = current_fx.to_numpy()[None, :] * np.exp(cum_fx)
         result["fx_log_return_scenarios"] = pd.DataFrame(cum_fx, columns=fx_names)
         result["fx_spot_scenarios"] = pd.DataFrame(fx_spot_scenarios, columns=fx_names)
-    return _apply_credit_bridge(result, credit_bridge, current_spreads, credit_floor)
+    return _restore_credit_residual(_apply_credit_bridge(result, credit_bridge, current_spreads, credit_floor),
+                                        credit_block, credit_bridge, horizon_bdays, rng_seed, credit_floor)
+
 
 

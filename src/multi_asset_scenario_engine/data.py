@@ -231,6 +231,7 @@ def download_fama_french_daily_factors(start_date, end_date):
     the function falls back to fetching and parsing Ken French's CSV zips directly.
     """
     try:
+        from pandas_datareader import data as web
         ff3 = web.DataReader("F-F_Research_Data_Factors_daily", "famafrench", start=start_date)[0]
         mom = web.DataReader("F-F_Momentum_Factor_daily", "famafrench", start=start_date)[0]
     except Exception:

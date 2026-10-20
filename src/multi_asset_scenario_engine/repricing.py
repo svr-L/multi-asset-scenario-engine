@@ -13,6 +13,7 @@ from scipy.stats import chi2
 from scipy.stats import t as student_t
 from scipy.stats import norm
 from scipy.special import gammaln
+from scipy.linalg import expm, logm
 from pandas.tseries.offsets import BDay
 
 
@@ -97,9 +98,9 @@ def standard_1y_transition_matrix(ratings=("AAA", "AA", "A", "BBB", "BB", "B", "
     rating including 'D' = default), in the style of published S&P/Moody's global average matrices.
 
     These are illustrative average through-the-cycle values (e.g. ~0.3% one-year default for BBB,
-    ~1.2% for BB, ~4.5% for B, ~26% for CCC); swap in your preferred matrix if you have one. Used at
-    the 1Y horizon to draw each corporate's horizon rating; immaterial at 1W (these probabilities are
-    one-year, so the one-week migration probability is negligible and the 1W path leaves them unused).
+    ~1.2% for BB, ~4.5% for B, ~26% for CCC); swap in your preferred matrix if you have one. Used as
+    is at 1Y, and scaled to 1M/3M through its generator (transition_matrix_for_horizon) to draw each
+    corporate's horizon rating; unused at 1W (the one-week migration probability is negligible).
     """
     pct = {
         "AAA": [90.00, 9.00, 0.60, 0.15, 0.15, 0.05, 0.03, 0.02],
@@ -115,6 +116,45 @@ def standard_1y_transition_matrix(ratings=("AAA", "AA", "A", "BBB", "BB", "B", "
     m = m.div(m.sum(axis=1), axis=0)            # normalize rows to 1 (defensive)
     return m
 
+
+
+def transition_matrix_for_horizon(transition_matrix, horizon_years):
+    """Rating transition matrix over `horizon_years`, from a ONE-YEAR matrix, via its generator.
+
+    A time-homogeneous Markov chain observed yearly has P(h) = exp(h Q) with Q = log P(1). Empirical
+    one-year matrices rarely embed exactly: log P typically has a few small NEGATIVE off-diagonal
+    rates, which is not a valid generator (the embedding problem). The standard repair (Israel,
+    Rosenthal & Wei 2001) sets those rates to zero and restores zero row sums on the diagonal; its
+    price is a small mismatch exp(Q) != P(1), reported as `embedding_error`. Columns that are not rows
+    (default, 'D') are treated as absorbing. At exactly one year the input is returned UNCHANGED (no
+    round trip through log/exp), so the one-year engine reprices exactly as before.
+
+    Returns (matrix over the horizon, shaped like the input; info dict).
+    """
+    m = transition_matrix
+    rows, cols = list(m.index), list(m.columns)
+    info = {"horizon_years": float(horizon_years), "method": "one-year matrix as is",
+            "n_negative_rates": 0, "worst_negative_rate": 0.0, "embedding_error": 0.0}
+    if abs(float(horizon_years) - 1.0) < 1e-12:
+        return m, info
+    n = len(cols)
+    P = np.eye(n)                                    # absorbing by default (rows missing from input)
+    for r in rows:
+        P[cols.index(r), :] = m.loc[r].to_numpy(dtype=float)
+    Q = np.real(logm(P))
+    off = ~np.eye(n, dtype=bool)
+    neg = off & (Q < 0.0)
+    info["n_negative_rates"] = int((off & (Q < -1e-12)).sum())
+    info["worst_negative_rate"] = float(Q[neg].min()) if neg.any() else 0.0
+    Q[neg] = 0.0
+    np.fill_diagonal(Q, 0.0)
+    np.fill_diagonal(Q, -Q.sum(axis=1))
+    info["embedding_error"] = float(np.abs(expm(Q) - P).max())
+    Ph = np.clip(expm(float(horizon_years) * Q), 0.0, None)
+    Ph = Ph / Ph.sum(axis=1, keepdims=True)
+    out = pd.DataFrame([Ph[cols.index(r), :] for r in rows], index=rows, columns=cols)
+    info["method"] = "generator, exp(h Q), negative rates zeroed"
+    return out, info
 
 def build_migration_thresholds(transition_matrix):
     """Latent-variable thresholds for the Gaussian-copula (CreditMetrics) migration model.
@@ -188,12 +228,13 @@ def coupons_paid_between(issue_date, horizon_date, payment_dates, coupon_rate, f
     """Total coupon cash paid between issue and horizon (no reinvestment), for horizon total return.
 
     Over a one-week horizon this is ~0 (no coupon usually falls in the window); over a one-year horizon
-    it is roughly one full year of coupon, a material part of a bond's total return, so the 1Y horizon
-    value should add it to the repriced clean/dirty PV.
+    it is roughly one full year of coupon, a material part of a bond's total return. Every horizon value
+    adds it to the repriced PV (in-sample AND out-of-sample), so the total-return basis never differs.
     """
     issue_date = pd.Timestamp(issue_date); horizon_date = pd.Timestamp(horizon_date)
     paid = payment_dates[(payment_dates > issue_date) & (payment_dates <= horizon_date)]
     return float(len(paid) * coupon_rate * face_value / freq)
+
 
 
 def accrued_interest(eval_date, payment_dates, coupon_rate=0.02, face_value=100.0, freq=2):

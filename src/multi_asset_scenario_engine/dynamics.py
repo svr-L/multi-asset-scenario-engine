@@ -328,15 +328,16 @@ def estimate_garch11_params(series, uncond_var=None, persistence_cap=0.998, min_
             "half_life_days": float(np.log(0.5) / np.log(p_best)), "lr_vs_const": lr}
 
 
-def _gjr11_nll_grid(r2, neg, uncond_var, alphas, gammas, persistences):
+def _gjr11_nll_grid(r2, neg, uncond_var, alphas, gammas, persistences, neg_share=0.5):
     """Vectorized Gaussian NLL (x2, up to a constant) of GJR-GARCH(1,1) candidates under variance
     targeting: sigma2_{t+1} = omega + (alpha + gamma*1[eps_t<0]) * eps_t^2 + beta * sigma2_t, with
-    persistence p = alpha + gamma/2 + beta (symmetric-innovation approximation) and
-    omega = (1 - p) * uncond_var. One pass over time evaluates all candidates."""
+    persistence p = alpha + gamma*m + beta and omega = (1 - p) * uncond_var, where m is the share of
+    the squared innovations that falls on down days (v23: measured; up to v22 m = 1/2, the
+    symmetric-innovation approximation). One pass over time evaluates all candidates."""
     A = np.asarray(alphas, dtype=float)
     G = np.asarray(gammas, dtype=float)
     P = np.asarray(persistences, dtype=float)
-    B = P - A - 0.5 * G
+    B = P - A - float(neg_share) * G
     W = (1.0 - P) * uncond_var
     floor = 1e-12 * max(float(uncond_var), 1e-300)
     s2 = np.full(A.shape, float(uncond_var))
@@ -346,6 +347,7 @@ def _gjr11_nll_grid(r2, neg, uncond_var, alphas, gammas, persistences):
         nll += np.log(s2) + r2[t] / s2
         s2 = W + (A + G * neg[t]) * r2[t] + B * s2
     return nll
+
 
 
 def estimate_gjr_garch11_params(series, uncond_var=None, persistence_cap=0.998,
@@ -359,9 +361,11 @@ def estimate_gjr_garch11_params(series, uncond_var=None, persistence_cap=0.998,
     indicative -- the null puts gamma on a boundary); if not even the best fit beats constant variance
     by `min_lr`, the factor falls back to constant variance. The news gate is on the TOTAL news
     weight alpha + gamma/2 (an index-equity GJR often has alpha ~ 0 with all news arriving through
-    gamma, which must not be gated away). Persistence p = alpha + gamma/2 + beta is capped at
-    `persistence_cap`; the p = alpha + gamma/2 + beta identity uses the symmetric-innovation
-    approximation E[1[eps<0] eps^2] = sigma^2 / 2, standard for variance targeting.
+    gamma, which must not be gated away). Persistence p = alpha + gamma*m + beta is capped at
+    `persistence_cap`; since v23 the identity is p = alpha + gamma*m + beta with m = E[1[eps<0] eps^2] / E[eps^2]
+    MEASURED on the series (up to v22 m = 1/2, the symmetric-innovation approximation, which
+    understated the persistence of negatively skewed series and let the simulated variance drift above
+    its target at long horizons).
     """
     e = np.asarray(series, dtype=float)
     e = e - e.mean()
@@ -374,24 +378,29 @@ def estimate_gjr_garch11_params(series, uncond_var=None, persistence_cap=0.998,
     if uv <= 0.0 or T < 60:
         return out_const
     nll_const = T * np.log(uv) + float(np.sum(r2)) / uv
+    # v23: the share of squared deviations that falls on down days. A GJR term gamma * 1[e<0] * e^2
+    # adds gamma * m to the persistence on average; up to v22 m was ASSUMED to be 1/2. With equity
+    # returns negatively skewed (m > 1/2) that understated the persistence, so the simulated variance
+    # drifted ABOVE its target -- more the longer the horizon. Measured here, it keeps the targeting exact.
+    m = float(np.sum(neg * r2) / np.sum(r2)) if float(np.sum(r2)) > 0.0 else 0.5
     a_g = np.array([0.0, 0.01, 0.02, 0.04, 0.06, 0.09, 0.12, 0.16])
     g_g = np.array([0.0, 0.02, 0.04, 0.07, 0.10, 0.14, 0.19, 0.25])
     p_g = np.array([0.90, 0.93, 0.95, 0.96, 0.97, 0.975, 0.98, 0.985, 0.99, 0.994, persistence_cap])
     cand = [(a, g, p) for a in a_g for g in g_g for p in p_g
-            if (p - a - 0.5 * g) >= 0.0 and (a + g) > 0.0]
+            if (p - a - m * g) >= 0.0 and (a + g) > 0.0]
     A = np.array([c[0] for c in cand]); G = np.array([c[1] for c in cand]); P = np.array([c[2] for c in cand])
-    nll = _gjr11_nll_grid(r2, neg, uv, A, G, P)
+    nll = _gjr11_nll_grid(r2, neg, uv, A, G, P, neg_share=m)
 
     def _refine(a0, g0, p0, free_gamma=True):
         af = np.unique(np.clip(a0 + np.linspace(-0.02, 0.02, 5), 0.0, 0.35))
         gf = np.unique(np.clip(g0 + np.linspace(-0.03, 0.03, 7), 0.0, 0.45)) if free_gamma else np.array([g0])
         pf = np.unique(np.clip(p0 + np.linspace(-0.004, 0.004, 7), 0.85, persistence_cap))
         c2 = [(a, g, p) for a in af for g in gf for p in pf
-              if (p - a - 0.5 * g) >= 0.0 and (a + g) > 0.0]
+              if (p - a - m * g) >= 0.0 and (a + g) > 0.0]
         if not c2:
             return a0, g0, p0, np.inf
         A2 = np.array([c[0] for c in c2]); G2 = np.array([c[1] for c in c2]); P2 = np.array([c[2] for c in c2])
-        n2 = _gjr11_nll_grid(r2, neg, uv, A2, G2, P2)
+        n2 = _gjr11_nll_grid(r2, neg, uv, A2, G2, P2, neg_share=m)
         j = int(np.argmin(n2))
         return float(A2[j]), float(G2[j]), float(P2[j]), float(n2[j])
 
@@ -412,13 +421,14 @@ def estimate_gjr_garch11_params(series, uncond_var=None, persistence_cap=0.998,
         a_b, g_b, p_b, lr_b = a_a, g_a, p_a, lr_all
     else:
         a_b, g_b, p_b, lr_b = a_s, 0.0, p_s, lr_sym
-    if (a_b + 0.5 * g_b) < min_news:
+    if (a_b + m * g_b) < min_news:
         out_const["lr_vs_const"] = lr_b
         out_const["lr_asym"] = lr_asym
         return out_const
-    return {"alpha": a_b, "gamma": g_b, "beta": max(p_b - a_b - 0.5 * g_b, 0.0),
+    return {"alpha": a_b, "gamma": g_b, "beta": max(p_b - a_b - m * g_b, 0.0),
             "persistence": p_b, "half_life_days": float(np.log(0.5) / np.log(p_b)),
-            "lr_vs_const": lr_b, "lr_asym": lr_asym}
+            "lr_vs_const": lr_b, "lr_asym": lr_asym, "neg_share": m}
+
 
 
 def estimate_ou_level_params(levels, tstat_gate=-2.86, min_obs=120):
@@ -503,7 +513,10 @@ def compute_ewma_fhs_filter(drivers, driver_mean, ewma_lambda=0.94, reversion_ha
             _est = [estimate_garch11_params(R[:, j], uncond_var=float(uncond_var[j])) for j in range(k)]
         alpha = np.array([e_["alpha"] for e_ in _est])
         persistence = np.array([e_["persistence"] for e_ in _est])
-        beta = np.maximum(persistence - alpha - 0.5 * np.asarray(gamma), 0.0)
+        if params_mode == "estimated_gjr":
+            beta = np.array([e_["beta"] for e_ in _est])               # v23: beta = p - alpha - gamma*m
+        else:
+            beta = np.maximum(persistence - alpha - 0.5 * np.asarray(gamma), 0.0)
         per_factor = {
             "alpha": alpha.copy(),
             "persistence": persistence.copy(),
@@ -537,12 +550,30 @@ def compute_ewma_fhs_filter(drivers, driver_mean, ewma_lambda=0.94, reversion_ha
         cond_var_now = omega + (alpha + gamma * _neg[T - 1]) * R[T - 1] ** 2 + beta * sigma2[T - 1]
     else:
         cond_var_now = omega + alpha * R[T - 1] ** 2 + beta * sigma2[T - 1]
+    omega_sim, beta_sim = uncond_var * (1.0 - persistence), beta
+    if _use_gjr:
+        # v23 -- the simulator drives the recursion with these standardized residuals, so its long-run
+        # variance is omega / (1 - alpha - beta - gamma * m_z) with m_z = E[1(z<0) z^2] measured on them.
+        # Targeting omega on m_z (not on 1/2) makes that long-run variance exactly uncond_var. A
+        # persistence at or above the cap is pulled back through beta.
+        g_arr = np.asarray(gamma, dtype=float)
+        m_z = np.mean((z < 0.0) * z ** 2, axis=0)
+        cap = 0.999
+        p_sim = alpha + beta + g_arr * m_z
+        beta_sim = np.where(p_sim > cap, np.maximum(beta - (p_sim - cap), 0.0), beta)
+        p_sim = np.minimum(alpha + beta_sim + g_arr * m_z, cap)
+        omega_sim = (1.0 - p_sim) * uncond_var
+        if per_factor is not None:
+            per_factor["neg_share"] = m_z
+            # what the v18-v22 targeting (m = 1/2) did to the simulated long-run variance at this p
+            _den = 1.0 - persistence - g_arr * (m_z - 0.5)
+            per_factor["v22_longrun_var_inflation"] = np.where(_den > 1e-9, (1.0 - persistence) / np.maximum(_den, 1e-9), np.inf)
     return {
         "standardized_residuals": z,
         "cond_var_now": cond_var_now,
-        "omega": uncond_var * (1.0 - persistence),
+        "omega": omega_sim,
         "alpha": alpha if np.ndim(alpha) else float(alpha),
-        "beta": beta if np.ndim(beta) else float(beta),
+        "beta": beta_sim if np.ndim(beta_sim) else float(beta_sim),
         "gamma": gamma if np.ndim(gamma) else float(gamma),
         "uncond_var": uncond_var,
         "persistence": persistence if np.ndim(persistence) else float(persistence),
@@ -550,5 +581,6 @@ def compute_ewma_fhs_filter(drivers, driver_mean, ewma_lambda=0.94, reversion_ha
         "params_mode": params_mode,
         "per_factor": per_factor,
     }
+
 
 

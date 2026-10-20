@@ -55,6 +55,9 @@ def _build_change_factor_model(changes, explained_var_target, prefix, mean_key, 
         index=scores.columns,
         name="explained_variance_ratio",
     )
+    # What the k retained factors do NOT reproduce, day by day (v22): the compression residual. Kept
+    # with the block; the simulator only uses it when CREDIT_RESIDUAL_MODE="restore" attaches it.
+    residuals = centered - scores.to_numpy() @ loadings.to_numpy().T
     return {
         "scores": scores,
         "loadings": loadings,
@@ -63,7 +66,9 @@ def _build_change_factor_model(changes, explained_var_target, prefix, mean_key, 
         "cum_explained_ratio": explained_ratio.cumsum(),
         "n_factors": k,
         "pca": pca,
+        "residuals": residuals,
     }
+
 
 
 def build_rates_factor_model(yield_changes, explained_var_target=0.995):
@@ -104,7 +109,7 @@ def build_curve_lsc_factors(key_rates):
     }, index=key_rates.index)
 
 
-def estimate_credit_bucket_bridge(bucket_panel, spread_changes_2pt, anchor_date, min_obs=120):
+def estimate_credit_bucket_bridge(bucket_panel, spread_changes_2pt, anchor_date, min_obs=120, horizon_bdays=1):
     """Sensitivity bridge from the simulated 2-point Moody's credit panel to the rating-bucket OAS
     curve, for REPRICING only (`CREDIT_BLOCK_SOURCE = "moody_2pt"`).
 
@@ -130,18 +135,31 @@ def estimate_credit_bucket_bridge(bucket_panel, spread_changes_2pt, anchor_date,
         raise ValueError(f"Bucket/2-point overlap too short for the bridge ({len(common)} rows).")
     X = spread_changes_2pt.loc[common].to_numpy(dtype=float)          # (T, 2)
     Y = d_b.loc[common].to_numpy(dtype=float)                         # (T, n_buckets)
-    G, _, _, _ = np.linalg.lstsq(X, Y, rcond=None)                    # (2, n_buckets)
-    fitted = X @ G
-    ss_res = np.sum((Y - fitted) ** 2, axis=0)
-    ss_tot = np.sum(Y ** 2, axis=0)                                   # interceptless convention
+    # v23: optionally fit on overlapping h-day changes (CREDIT_BRIDGE_FREQUENCY="horizon"), capped so
+    # the overlap still holds ~20 independent windows. At h = 1 this is the v19-v22 daily fit, exactly.
+    h = max(1, min(int(horizon_bdays), len(common) // 20))
+    if h > 1:
+        Xf = pd.DataFrame(X).rolling(h).sum().dropna().to_numpy()
+        Yf = pd.DataFrame(Y).rolling(h).sum().dropna().to_numpy()
+    else:
+        Xf, Yf = X, Y
+    G, _, _, _ = np.linalg.lstsq(Xf, Yf, rcond=None)                  # (2, n_buckets)
+    fitted_f = Xf @ G
+    ss_res = np.sum((Yf - fitted_f) ** 2, axis=0)
+    ss_tot = np.sum(Yf ** 2, axis=0)                                  # interceptless convention
     r2 = 1.0 - np.divide(ss_res, ss_tot, out=np.zeros_like(ss_res), where=ss_tot > 0)
+    fitted = X @ G                                                    # daily moves under the fitted gamma
     anchor = bp.loc[:anchor_date].iloc[-1]
     return {
         "gamma": pd.DataFrame(G.T, index=bp.columns, columns=spread_changes_2pt.columns),
         "current_buckets": anchor,
-        "r2": pd.Series(r2, index=bp.columns),
+        "r2": pd.Series(r2, index=bp.columns),                       # at the fit frequency
         "n_overlap": int(len(common)),
+        "frequency_bdays": int(h),
+        # bucket-specific daily moves the 2-point map does not explain (v22, "restore" only)
+        "residuals": pd.DataFrame(Y - fitted, index=common, columns=bp.columns),
     }
+
 
 
 def build_credit_lsc_factors(credit_spreads):
