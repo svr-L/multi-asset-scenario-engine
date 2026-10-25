@@ -4,17 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "multi-asset-scenario-engine"
-version = "0.23.0"
-description = "Multi-horizon cross-asset physical-measure scenario generation, repricing, and VaR/ES validation"
+version = "0.30.0"
+description = "Physical-measure multi-asset scenario generation, adaptive cross-asset dependence, horizon repricing, and tail-risk analytics"
 requires-python = ">=3.10"
 dependencies = [
-  "numpy>=1.26", "pandas>=2.1", "matplotlib>=3.8", "scikit-learn>=1.5",
+  "numpy>=1.26", "pandas>=2.1", "matplotlib>=3.8", "scikit-learn>=1.3",
   "statsmodels>=0.14", "scipy>=1.11", "yfinance>=0.2", "pandas-datareader>=0.10"
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.pytest.ini_options]
-pythonpath = ["src"]
-testpaths = ["tests"]
