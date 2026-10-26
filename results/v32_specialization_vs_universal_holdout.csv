@@ -1,0 +1,6 @@
+objective,specialist_model,universal_ex_ante_model,n,specialist_mean_loss,universal_mean_loss,mean_gain_specialist_vs_universal,win_rate,ci_lo,ci_hi,bootstrap_Pr_gain_le_0_NOT_pvalue
+joint_distribution,raw_duration|blockwise|direct_H,pit_pooled|hierarchical|direct_H,62,1.590473,1.581057,-0.009416,0.435484,-0.021649,0.002431,0.94
+dependence,pit_pooled|blockwise|direct_H,pit_pooled|hierarchical|direct_H,62,0.150721,0.150445,-0.000277,0.5,-0.00203,0.001515,0.633
+marginals,raw_duration|blockwise|direct_H,pit_pooled|hierarchical|direct_H,62,0.511465,0.507946,-0.003519,0.387097,-0.007289,0.000452,0.948
+projections,raw_duration|hierarchical|direct_H,pit_pooled|hierarchical|direct_H,62,0.418794,0.419156,0.000362,0.532258,-0.000529,0.001167,0.216
+tail_risk_reference,raw_duration|blockwise|recursive_1W,pit_pooled|hierarchical|direct_H,62,0.443449,0.577367,0.133918,0.612903,-0.014802,0.3065,0.049

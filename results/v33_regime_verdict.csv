@@ -1,0 +1,6 @@
+objective,validated_regime,promising_regime,gain_vs_fixed,ci_lo_vs_fixed,gain_vs_universal,ci_lo_vs_universal
+joint_distribution,False,False,-0.000346,-0.008345,-0.00975,-0.021231
+dependence,False,False,0.0,0.0,-0.000287,-0.001894
+marginals,False,False,-0.000404,-0.003676,-0.003924,-0.007033
+projections,False,False,-0.003349,-0.005895,-0.002985,-0.005333
+tail_risk_reference,False,False,-0.057525,-0.204664,0.079488,-0.140524

@@ -1,0 +1,33 @@
+{
+  "version": "0.33.0",
+  "validated_horizon": "1M",
+  "horizon_business_days": 21,
+  "research_as_of": "2026-05-01",
+  "sample_start": "2006-02-10",
+  "production_model": "raw_duration|hierarchical|direct_H",
+  "representation": "raw_duration",
+  "dependence_architecture": "hierarchical",
+  "propagation": "direct_H",
+  "driver_columns": [
+    "EQ_EW",
+    "RATE_DGS2",
+    "RATE_DGS10",
+    "RATE_DGS30",
+    "CREDIT_Aaa_spr",
+    "CREDIT_Baa_spr",
+    "FX_EURUSD"
+  ],
+  "driver_semantics": {
+    "EQ_EW": "1M aggregate log return of the broad equity driver",
+    "RATE_DGS2": "1M change in 2Y Treasury yield (decimal)",
+    "RATE_DGS10": "1M change in 10Y Treasury yield (decimal)",
+    "RATE_DGS30": "1M change in 30Y Treasury yield (decimal)",
+    "CREDIT_Aaa_spr": "1M change in Aaa-minus-DGS10 credit spread (decimal)",
+    "CREDIT_Baa_spr": "1M change in Baa-minus-DGS10 credit spread (decimal)",
+    "FX_EURUSD": "1M EURUSD log return"
+  },
+  "validated_regime_objectives": [],
+  "objective_specialization_status": "not validated against a universal ex-ante engine on the untouched holdout",
+  "regime_conditioning_status": "rejected on the untouched holdout",
+  "consumer_policy": "Use the production model as the default 1M physical-measure scenario law; downstream consumers own their decision objective and portfolio mapping."
+}

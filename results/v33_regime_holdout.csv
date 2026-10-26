@@ -1,0 +1,11 @@
+objective,benchmark,n,regime_mean_loss,benchmark_mean_loss,mean_gain_regime_vs_benchmark,win_rate,ci_lo,ci_hi,bootstrap_Pr_gain_le_0_NOT_pvalue
+joint_distribution,fixed_objective,62,1.590819,1.590473,-0.000346,0.241935,-0.008345,0.006948,0.565
+joint_distribution,universal_ex_ante,62,1.590819,1.58107,-0.00975,0.435484,-0.021231,-0.00075,0.979
+dependence,fixed_objective,62,0.150721,0.150721,0.0,0.0,0.0,0.0,1.0
+dependence,universal_ex_ante,62,0.150721,0.150434,-0.000287,0.5,-0.001894,0.001322,0.642
+marginals,fixed_objective,62,0.511869,0.511465,-0.000404,0.225806,-0.003676,0.002264,0.636
+marginals,universal_ex_ante,62,0.511869,0.507945,-0.003924,0.387097,-0.007033,-0.001294,1.0
+projections,fixed_objective,62,0.422143,0.418795,-0.003349,0.403226,-0.005895,-0.001007,0.998
+projections,universal_ex_ante,62,0.422143,0.419158,-0.002985,0.177419,-0.005333,-0.000985,0.999
+tail_risk_reference,fixed_objective,62,0.500977,0.443451,-0.057525,0.209677,-0.204664,0.037298,0.809
+tail_risk_reference,universal_ex_ante,62,0.500977,0.580465,0.079488,0.548387,-0.140524,0.318882,0.234

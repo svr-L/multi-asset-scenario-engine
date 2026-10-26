@@ -21,3 +21,11 @@ the full joint predictive distribution. Direct-H remains the default.
 ## Scoring
 Energy Score and Variogram Score are used jointly so improvements in the full distribution and in
 dependence can be distinguished.
+
+
+## V32.2 / V33 final monthly decision
+- Validated horizon: 1M / 21 business days.
+- Objective specialization: not broadly validated against the universal ex-ante engine on untouched holdout.
+- Normal/stress regime conditioning: rejected.
+- Production selection: `raw_duration|hierarchical|direct_H`.
+- Downstream consumers should not rerun the rejected selector.

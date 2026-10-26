@@ -1,234 +1,111 @@
 # Multi-Asset Scenario Engine
 
-**Physical-measure multi-asset predictive distributions, adaptive cross-asset dependence, horizon repricing, and objective-aware model selection.**
+**Physical-measure multi-asset predictive distributions, cross-asset dependence, full horizon repricing, and empirically adjudicated scenario architecture.**
 
-This repository jointly models and reprices **US equities, Treasury rates, credit spreads and FX** over
-1W / 1M / 3M / 1Y horizons. It combines asset-class factor models, filtered historical simulation,
-empirical block resampling, full instrument repricing and distributional and tail-risk analysis with explicit research layers for **cross-asset dependence** and
-**objective-aware scenario-law selection**.
+The engine models **US equities, Treasury rates, credit spreads and FX** and converts their joint risk-driver distribution into horizon scenarios for pricing, risk, stress and portfolio systems. The research program deliberately tests extra modelling layers rather than assuming they help.
 
-The project now asks a broader question than “can I generate scenarios?”:
+> **Validated production stance (v0.33):** at the currently validated **1M / 21-business-day horizon**, use **`raw_duration|hierarchical|direct_H`**. Objective-specific routing and normal/stress regime switching were tested on untouched holdouts and were **not promoted to production**.
 
-> **How should a multi-asset joint distribution be represented, and which extra modelling layers
-> actually improve it out of sample?**
-
-**Current public stance:** hierarchical global/local dependence is the structured research architecture;
-blockwise empirical dependence remains the hard benchmark; direct-horizon simulation is the default;
-duration-conditioned PIT pooling remains an optional challenger.
-
----
-
-## Why this project is different
-
-The framework separates five modelling questions that are often mixed together:
-
-1. **Marginal dynamics** — conditional-volatility filtered historical simulation.
-2. **Duration / severity** — shocks can be interpreted relative to their own horizon-specific empirical law.
-3. **Cross-asset dependence** — blockwise empirical resampling vs a global/local hierarchy.
-4. **Propagation** — direct horizon forecasts vs recursive short-horizon propagation.
-5. **Repricing and adjudication** — full instrument repricing plus OOS proper multivariate scoring.
+## Research architecture
+The controlled candidate family is `{raw duration, duration-PIT} × {blockwise, hierarchical} × {direct-H, recursive-1W}`. The framework separates marginal/conditional dynamics, empirical duration representation, cross-asset dependence, horizon propagation, full repricing and proper-score adjudication.
 
 ```mermaid
 flowchart LR
-    A[Market data] --> B[Asset-class risk drivers]
-    B --> C[Marginal dynamics / FHS]
+    A[Market data] --> B[Asset-class drivers]
+    B --> C[Conditional / empirical dynamics]
     C --> D1[Blockwise dependence]
-    C --> D2[Hierarchical global/local dependence]
-    B --> P[Optional duration-conditioned PIT]
+    C --> D2[Hierarchical global-local dependence]
+    B --> P[Duration-PIT challenger]
     P --> D1
     P --> D2
     D1 --> E[Joint horizon scenarios]
     D2 --> E
     E --> F[Instrument repricing]
-    F --> G[Portfolio VaR / ES / tail attribution]
-    E --> H[OOS Energy + Variogram scores]
+    F --> G[VaR / ES / stress / portfolio outputs]
+    E --> H[Energy / Variogram / CRPS / FZ adjudication]
 ```
 
----
-
-## Core engine
-
-**Equities** — configurable market-proxy / APT / statistical factor structures, compressed residual risk,
-conditional-volatility FHS.
-
-**Rates** — Treasury key-rate curve modelling, PCA/curve factors, full-curve coupon-bond repricing.
-
-**Credit** — spread factors, long-history Moody's stress backbone, horizon-consistent bridge,
-migration/default and corporate-bond repricing.
-
+## Asset blocks
+**Equities** — factor/statistical structures, compressed residual risk and conditional-volatility FHS.  
+**Rates** — Treasury key-rate curve modelling, PCA/curve factors and full-curve bond repricing.  
+**Credit** — spread factors, long-history Moody's stress backbone, horizon-consistent spread treatment, migration/default and corporate-bond repricing.  
 **FX** — historical spot dynamics, cross-asset scenarios and FX-forward repricing.
 
-**Portfolio layer** — capital-normalised returns, VaR/ES, tail contributions, long-only minimum-CVaR search
-and independent fresh-draw evaluation.
-
----
-
-## Cross-asset dependence: hard benchmark vs research architecture
-
-The original blockwise engine is intentionally retained because it is empirical, parsimonious and hard
-to beat consistently. The hierarchical challenger decomposes
-
-\[
-d_t = \Lambda g_t + u_t,
-\]
-
-with a low-dimensional global span chosen to absorb **cross-block covariance** while residual risk remains local.
+## Cross-asset dependence
+Blockwise empirical dependence remains the hard benchmark. The structured architecture uses a low-dimensional global span plus block-local residual risk targeting cross-block covariance directly.
 
 ![Architecture Energy Score](figures/architecture_energy_score.png)
 
-In the frozen lean adjudication, hierarchical specifications delivered the best direct-horizon Energy
-Score at 1W, 3M and 1Y; blockwise was best at 1M. The conclusion is not universal dominance: **hierarchy
-is the research model, blockwise is the permanent hard benchmark.**
+The final monthly production policy retains **hierarchical** dependence, without claiming universal hierarchical dominance across all horizons or tasks.
 
----
+## Final monthly adjudication
+### V32.2 — objective specialization
+Five objectives were tested: joint distribution (Energy Score), dependence (Variogram Score), marginals (CRPS), economic projections (projection CRPS), and a reference tail loss (FZ0 VaR/ES score). Specialists chosen on calibration did not produce broad robust gains versus one universal ex-ante engine on the untouched 2021–2026 holdout.
 
-## Duration-conditioned probability representation
+### V33 — regime conditioning
+A transparent normal/stress state used equity vol, rates vol, lower-quality credit stress and dependence instability with hysteresis. No objective passed the pre-specified deployment gate versus both fixed-objective and universal baselines.
 
-For a realised block of length \(L_b\),
+**Result:** model-selection complexity is a negative result, not a production feature. See `notebooks/05_monthly_model_adjudication.ipynb` and `docs/model_adjudication.md`.
 
-\[
-Y_b^{(L_b)} = \sum_{\tau=1}^{L_b} x_{t+\tau},
-\]
-
-and each component can be transformed against its own \(L_b\)-day empirical law,
-
-\[
-U_{b,j}=\widehat F_j^{(L_b)}(Y_{b,j}^{(L_b)}),
-\qquad
-Z_{b,j}=\Phi^{-1}(U_{b,j}).
-\]
-
-This separates raw horizon scale from statistical severity and makes heterogeneous block durations
-poolable in probability space. The PIT layer remains an **explicit challenger**, because its OOS benefit
-is horizon-dependent rather than universal.
-
----
-
-## OOS model adjudication
-
-The research notebooks compare
-
-\[
-\{\text{raw duration},\text{PIT pooled}\}
-\times
-\{\text{blockwise},\text{hierarchical}\}
-\times
-\{\text{direct-H},\text{recursive-1W}\}.
-\]
-
-Two proper scores are used:
-
-- **Energy Score** for the full joint predictive distribution;
-- **Variogram Score** for dependence-sensitive fit.
-
-![Factorial main effects](figures/factorial_energy_main_effects.png)
-
-The current evidence keeps **direct-H** as the default. Recursive-1W can fix selected pairwise
-relationships but does not improve the joint predictive distribution consistently.
-
-![Variogram components](figures/hierarchy_variogram_components.png)
-
-The hierarchy's gains are selective across equity/rates/credit/FX pairs, so component-level dependence
-diagnostics are retained rather than hidden behind one aggregate number.
-
----
-
-
-## Objective-aware multi-horizon routing
-
-The engine does **not** assume that one scenario law must be optimal for every use case. Candidate laws
-can be selected point-in-time by horizon and by the statistical property that matters:
-
-| Objective | Primary loss | Why |
-|---|---|---|
-| `joint_distribution` | Energy Score | full multivariate predictive law |
-| `dependence` | Variogram Score | cross-asset dependence |
-| `marginals` | CRPS | coordinate-wise calibration |
-| `projections` | projection CRPS | economically relevant linear directions |
-| `tail_risk` | FZ0 VaR/ES score | joint VaR/ES forecast quality |
-| `density` | NLL | only when comparable predictive densities genuinely exist |
-
-The selector uses only validation observations available **before** the forecast date. It supports a hard
-winner, a paired **one-standard-error** rule that prefers simpler statistically indistinguishable models,
-and soft scenario mixtures.
-
+## Validated production API
 ```python
-router = ObjectiveRouter(score_history, complexity=complexity, min_history=20)
-decision = router.select(
-    asof=forecast_date,
-    horizon="1M",
-    objective="joint_distribution",
-    policy="one_se",
-)
+from multi_asset_scenario_engine import validated_policy, model_for
+policy = validated_policy()
+assert policy.horizon == "1M"
+assert model_for("joint_distribution") == "raw_duration|hierarchical|direct_H"
 ```
 
-The router is deliberately downstream-agnostic. Risk systems, stress tests, pricing tools, portfolio
-construction engines or other consumers may use the resulting scenario law without becoming part of the
-Scenario Engine itself. Custom downstream decision losses can be routed through the same generic history
-schema while the decision logic stays external.
+Driver contract:
 
----
+| Driver | 1M scenario meaning |
+|---|---|
+| `EQ_EW` | aggregate equity log return |
+| `RATE_DGS2` | 2Y Treasury yield change |
+| `RATE_DGS10` | 10Y Treasury yield change |
+| `RATE_DGS30` | 30Y Treasury yield change |
+| `CREDIT_Aaa_spr` | Aaa-minus-DGS10 spread change |
+| `CREDIT_Baa_spr` | Baa-minus-DGS10 spread change |
+| `FX_EURUSD` | EURUSD log return |
 
-## Continuity with the v23 risk engine
+Portfolio consumers should preferably receive the **repriced instrument/asset-return scenario matrix**, not raw drivers. See `docs/consumer_interface.md`.
 
-The research layer sits on top of a mature scenario/repricing backbone. Reference v23 95% VaR validation:
+## Risk-engine continuity
+The model-adjudication research sits on the earlier multi-horizon scenario/repricing backbone. Reference v23 95% VaR validation remains in `results/v23_var_es_reference.csv`.
 
 ![v23 VaR breach rates](figures/v23_var_breach_rates.png)
 
-| Horizon | OOS windows | Breach rate | Kupiec p | Conditional-coverage p |
-|---|---:|---:|---:|---:|
-| 1W | 219 | 4.1% | 0.533 | 0.559 |
-| 1M | 219 | 5.0% | 0.988 | 0.557 |
-| 3M | 73 | 2.7% | 0.334 | 0.593 |
-| 1Y | 19 | 5.3% | 0.958 | 0.942 |
-
-The 1Y row is descriptive rather than strong validation because the non-overlapping annual sample is small.
-
----
-
 ## Repository structure
-
 ```text
 multi-asset-scenario-engine/
 ├── README.md
+├── docs/
+│   ├── consumer_interface.md
+│   ├── model_adjudication.md
+│   └── research_decisions.md
 ├── figures/
 ├── results/
+│   ├── v32_specialization_vs_universal_holdout.csv
+│   ├── v33_regime_holdout.csv
+│   ├── v33_regime_verdict.csv
+│   └── v33_production_manifest.json
 ├── notebooks/
 │   ├── 01_engine_standalone.ipynb
 │   ├── 02_dependence_architecture_ablation.ipynb
 │   ├── 03_duration_pit_factorial.ipynb
 │   ├── 04_validation_scores.ipynb
-│   └── 05_objective_aware_router.ipynb
+│   └── 05_monthly_model_adjudication.ipynb
 ├── src/multi_asset_scenario_engine/
-│   ├── data.py
-│   ├── equity.py
-│   ├── factors.py
-│   ├── dynamics.py
-│   ├── simulation.py
+│   ├── production.py
 │   ├── dependence.py
 │   ├── duration.py
 │   ├── scoring.py
-│   ├── router.py
+│   ├── simulation.py
 │   ├── repricing.py
-│   ├── portfolio.py
-│   ├── backtesting.py
-│   └── diagnostics.py
-├── tests/
-└── docs/research_decisions.md
+│   └── ...
+└── tests/
 ```
 
-### Notebook roles
-
-- `01_engine_standalone.ipynb` — **Run All engine**: data, drivers, scenarios, repricing, portfolio risk.
-- `02_dependence_architecture_ablation.ipynb` — blockwise vs hierarchical evidence.
-- `03_duration_pit_factorial.ipynb` — full lean representation × architecture × propagation research gate.
-- `04_validation_scores.ipynb` — fast reproduction of committed Energy/Variogram evidence.
-- `05_objective_aware_router.ipynb` — point-in-time horizon/objective routing and nested selection.
-
----
-
 ## Quick start
-
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
@@ -237,29 +114,4 @@ pytest -q
 jupyter lab notebooks/01_engine_standalone.ipynb
 ```
 
-A fresh standalone-engine run downloads public data from Yahoo Finance, FRED and Kenneth French sources.
-
----
-
-## Research principles
-
-1. **Complexity must earn its place OOS.**
-2. **Benchmarks stay strong.**
-3. **Negative results stay visible.**
-
-A challenger that improves one correlation but worsens the joint predictive distribution is not
-promoted to default.
-
----
-
-## Next extension
-
-The immediate research step is to run the objective-aware router on full point-in-time score histories,
-including repriced tail-risk losses, and test whether routing itself adds OOS value versus strong fixed-model
-benchmarks. A **commodities block** remains the next asset-class extension after that validation.
-
----
-
-## Disclaimer
-
-Quantitative-finance research project. Not investment advice and not a production trading or risk system.
+Final adjudication sample begins after the DGS30 discontinuity and is frozen through **2026-05-01**. Live consumers should refit the **same validated architecture** to the target as-of date rather than re-selecting architecture downstream.
