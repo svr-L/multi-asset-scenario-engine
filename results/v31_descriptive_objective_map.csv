@@ -1,0 +1,9 @@
+horizon,objective,representation,architecture,model,mean_loss,n
+1M,joint_distribution,pit_pooled,blockwise,pit_pooled|blockwise|direct_H,1.58146,200
+1M,dependence,pit_pooled,blockwise,pit_pooled|blockwise|direct_H,0.17759,200
+1W,joint_distribution,raw_duration,hierarchical,raw_duration|hierarchical|direct_H,1.55327,200
+1W,dependence,pit_pooled,hierarchical,pit_pooled|hierarchical|direct_H,0.16848,200
+1Y,joint_distribution,pit_pooled,hierarchical,pit_pooled|hierarchical|direct_H,2.14238,24
+1Y,dependence,raw_duration,blockwise,raw_duration|blockwise|direct_H,0.22706,24
+3M,joint_distribution,raw_duration,hierarchical,raw_duration|hierarchical|direct_H,1.6379,80
+3M,dependence,raw_duration,hierarchical,raw_duration|hierarchical|direct_H,0.20661,80

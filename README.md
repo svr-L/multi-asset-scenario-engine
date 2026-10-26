@@ -1,11 +1,11 @@
 # Multi-Asset Scenario Engine
 
-**Physical-measure scenario generation, adaptive cross-asset dependence, horizon repricing, and portfolio tail-risk analytics.**
+**Physical-measure multi-asset predictive distributions, adaptive cross-asset dependence, horizon repricing, and objective-aware model selection.**
 
 This repository jointly models and reprices **US equities, Treasury rates, credit spreads and FX** over
 1W / 1M / 3M / 1Y horizons. It combines asset-class factor models, filtered historical simulation,
-empirical block resampling, full instrument repricing and portfolio tail-risk analysis with an explicit
-research layer for **cross-asset dependence**.
+empirical block resampling, full instrument repricing and distributional and tail-risk analysis with explicit research layers for **cross-asset dependence** and
+**objective-aware scenario-law selection**.
 
 The project now asks a broader question than “can I generate scenarios?”:
 
@@ -133,6 +133,42 @@ diagnostics are retained rather than hidden behind one aggregate number.
 
 ---
 
+
+## Objective-aware multi-horizon routing
+
+The engine does **not** assume that one scenario law must be optimal for every use case. Candidate laws
+can be selected point-in-time by horizon and by the statistical property that matters:
+
+| Objective | Primary loss | Why |
+|---|---|---|
+| `joint_distribution` | Energy Score | full multivariate predictive law |
+| `dependence` | Variogram Score | cross-asset dependence |
+| `marginals` | CRPS | coordinate-wise calibration |
+| `projections` | projection CRPS | economically relevant linear directions |
+| `tail_risk` | FZ0 VaR/ES score | joint VaR/ES forecast quality |
+| `density` | NLL | only when comparable predictive densities genuinely exist |
+
+The selector uses only validation observations available **before** the forecast date. It supports a hard
+winner, a paired **one-standard-error** rule that prefers simpler statistically indistinguishable models,
+and soft scenario mixtures.
+
+```python
+router = ObjectiveRouter(score_history, complexity=complexity, min_history=20)
+decision = router.select(
+    asof=forecast_date,
+    horizon="1M",
+    objective="joint_distribution",
+    policy="one_se",
+)
+```
+
+The router is deliberately downstream-agnostic. Risk systems, stress tests, pricing tools, portfolio
+construction engines or other consumers may use the resulting scenario law without becoming part of the
+Scenario Engine itself. Custom downstream decision losses can be routed through the same generic history
+schema while the decision logic stays external.
+
+---
+
 ## Continuity with the v23 risk engine
 
 The research layer sits on top of a mature scenario/repricing backbone. Reference v23 95% VaR validation:
@@ -161,7 +197,8 @@ multi-asset-scenario-engine/
 │   ├── 01_engine_standalone.ipynb
 │   ├── 02_dependence_architecture_ablation.ipynb
 │   ├── 03_duration_pit_factorial.ipynb
-│   └── 04_validation_scores.ipynb
+│   ├── 04_validation_scores.ipynb
+│   └── 05_objective_aware_router.ipynb
 ├── src/multi_asset_scenario_engine/
 │   ├── data.py
 │   ├── equity.py
@@ -171,6 +208,7 @@ multi-asset-scenario-engine/
 │   ├── dependence.py
 │   ├── duration.py
 │   ├── scoring.py
+│   ├── router.py
 │   ├── repricing.py
 │   ├── portfolio.py
 │   ├── backtesting.py
@@ -185,6 +223,7 @@ multi-asset-scenario-engine/
 - `02_dependence_architecture_ablation.ipynb` — blockwise vs hierarchical evidence.
 - `03_duration_pit_factorial.ipynb` — full lean representation × architecture × propagation research gate.
 - `04_validation_scores.ipynb` — fast reproduction of committed Energy/Variogram evidence.
+- `05_objective_aware_router.ipynb` — point-in-time horizon/objective routing and nested selection.
 
 ---
 
@@ -215,8 +254,9 @@ promoted to default.
 
 ## Next extension
 
-The next asset-class extension is a **commodities block**. It will be added without simultaneously
-changing the dependence machinery, so the fifth block becomes a structural test of the existing framework.
+The immediate research step is to run the objective-aware router on full point-in-time score histories,
+including repriced tail-risk losses, and test whether routing itself adds OOS value versus strong fixed-model
+benchmarks. A **commodities block** remains the next asset-class extension after that validation.
 
 ---
 
